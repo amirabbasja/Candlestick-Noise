@@ -2,13 +2,15 @@ import string
 from time import time
 import pandas as pd
 import numpy as np
-import Functions
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import plotly.graph_objects as go
 # In this script we add noise to candles. There are different ways of
 # adding noise to candles and all the different methods are in the Noise
 # class.
+def getCandles(fileLocation : string) -> pd.DataFrame():
+    # This fuunction reads a dataframe from a csv file
+    return pd.read_csv(fileLocation)
 
 class Noise():
     """
@@ -339,7 +341,7 @@ class Brownian():
         return s
 
        
-data = Functions.getCandles("./Datas/historical_BTCUSDT_5m_1420057800000.csv")[-1000:]
+data = getCandles("./Datas/historical_BTCUSDT_5m_1420057800000.csv")[-1000:]
 
 originalChart = go.Candlestick(x=data["open_time"],
                 open=data['open'],
@@ -349,14 +351,14 @@ originalChart = go.Candlestick(x=data["open_time"],
                 name = "Original"
                 )
 
-candles = GenerateCandles().Gaussian(
+candles = GenerateCandles().GaussianCnadles(
     data["open_time"], 
     data["open"], 
     data["high"], 
     data["close"], 
     data["low"], 
     scale = [50, 0, 0], 
-    method = 1)
+    method = 2)
 
 noisedChart = go.Candlestick(x=candles["time"],
                 open=candles['open'],
