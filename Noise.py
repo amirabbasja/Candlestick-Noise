@@ -1,6 +1,7 @@
 import string
 from time import time
 import pandas as pd
+from plotly.subplots import make_subplots
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -54,6 +55,8 @@ class Noise():
         high:pd.Series, 
         close:pd.Series, 
         low:pd.Series, 
+        volume:pd.Series, 
+        close_time:pd.Series, 
         scale, 
         method: int
         ) -> pd.DataFrame(dtype="float64"):
@@ -95,112 +98,140 @@ class Noise():
         frame = {"time":time,"open":open,"high":high,"low":low,"close":close}
         df = pd.DataFrame(frame)
 
+        # We added this method to see if the prices contain negative value (which are not acceptable)
+        # Only after the end of data generation we can know this, so we use a while loop 
+        _continue = True
 
-        if method == 1:
-            # The logic: In thsi method we do not care about not generating gaps. so we add noise
-            # to the body of each candle but we keep the open price the same. this will avoid the 
-            # noise to be accumulated and chart looks very much like the original (Without noise)
-             
-            df["Date"] = time
-            df["open"] = open
-            df["close"] = close
-            df["high"] = high
-            df["low"] = low
+        while _continue:
+            if method == 1:
+                # The logic: In thsi method we do not care about not generating gaps. so we add noise
+                # to the body of each candle but we keep the open price the same. this will avoid the 
+                # noise to be accumulated and chart looks very much like the original (Without noise)
+                
+                df["Date"] = time
+                df["open"] = open
+                df["close"] = close
+                df["high"] = high
+                df["low"] = low
+                df["volume"] = volume
 
-            shape = time.shape[0]
-            pert_body = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_body /= max(pert_body)
+                shape = time.shape[0]
+                pert_body = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_body /= max(pert_body)
 
-            pert_upperWick = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_upperWick /= max(pert_upperWick)
+                pert_upperWick = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_upperWick /= max(pert_upperWick)
 
-            pert_lowerWick = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_lowerWick /= max(pert_lowerWick)
+                pert_lowerWick = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_lowerWick /= max(pert_lowerWick)
 
-            temp = pd.DataFrame()
-            temp["u1"] = df["high"] - df["close"]
-            temp["u2"] = df["high"] - df["open"]
-            temp["l1"] = df["close"] - df["low"]
-            temp["l2"] = df["open"] - df["low"]
+                temp = pd.DataFrame()
+                temp["u1"] = df["high"] - df["close"]
+                temp["u2"] = df["high"] - df["open"]
+                temp["l1"] = df["close"] - df["low"]
+                temp["l2"] = df["open"] - df["low"]
 
-            _upperWickLen = temp[["u1","u2"]].max(axis=1)
-            _lowerWickLen = temp[["u1","u2"]].max(axis=1)
-            _bodyLen = close - open
+                _upperWickLen = temp[["u1","u2"]].max(axis=1)
+                _lowerWickLen = temp[["u1","u2"]].max(axis=1)
+                _bodyLen = close - open
 
-            _body = _bodyLen * (1 + pert_body) * scale_body
-            _high = _upperWickLen * (1 + pert_upperWick) * scale_high
-            _low  = _lowerWickLen * (1 + pert_lowerWick) * scale_low
+                _body = _bodyLen * (1 + pert_body) * scale_body
+                _high = _upperWickLen * (1 + pert_upperWick) * scale_high
+                _low  = _lowerWickLen * (1 + pert_lowerWick) * scale_low
+                _volume = volume * abs((_high - _low)/(high - low))
 
-            df["_open"] = open
-            df["_close"] = open + _body
-            df["_high"] =  df[["_open","_close"]].max(axis=1) +_high
-            df["_low"] =  df[["_open","_close"]].max(axis=1) +_high
+                df["_open"] = open
+                df["_close"] = open + _body
+                df["_high"] =  df[["_open","_close"]].max(axis=1) +_high
+                df["_low"] =  df[["_open","_close"]].max(axis=1) +_high
+                df["_volume"] = _volume
 
-            frame = {
-                "time":time,
-                "open":df["_open"],
-                "high":df["_high"],
-                "low":df["_low"],
-                "close":df["_close"]
-            }
+                frame = {
+                    "date":time,
+                    "open":df["_open"],
+                    "high":df["_high"],
+                    "low":df["_low"],
+                    "close":df["_close"],
+                    "volume":df["_volume"],
+                    "close_time":close_time
+                }
 
-            returnDF = pd.DataFrame(frame)
+                returnDF = pd.DataFrame(frame)
 
-        elif method == 2:
-            # The logic: to keep the candles continouse and avoid making gamps, we use cumsum 
-            # of the body + noise adn assign the value to the candle's close. and then we assign
-            # the close of the current candle to open of the next candle
-             
-            df["Date"] = time
-            df["open"] = open
-            df["close"] = close
-            df["high"] = high
-            df["low"] = low
+                # Generate the data untill there are no negative values
+                if not (returnDF.iloc[:,1:4] < 0).any().any():
+                    _continue = False
 
-            shape = time.shape[0]
-            pert_body = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_body /= max(pert_body)
+            elif method == 2:
+                # The logic: to keep the candles continouse and avoid making gamps, we use cumsum 
+                # of the body + noise adn assign the value to the candle's close. and then we assign
+                # the close of the current candle to open of the next candle
+                
+                df["Date"] = time
+                df["open"] = open
+                df["close"] = close
+                df["high"] = high
+                df["low"] = low
+                df["volume"] = volume
 
-            pert_upperWick = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_upperWick /= max(pert_upperWick)
+                shape = time.shape[0]
+                pert_body = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_body /= max(pert_body)
 
-            pert_lowerWick = np.random.normal(loc = 0, scale = 1, size = shape)
-            pert_lowerWick /= max(pert_lowerWick)
+                pert_upperWick = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_upperWick /= max(pert_upperWick)
 
-            temp = pd.DataFrame()
-            temp["u1"] = df["high"] - df["close"]
-            temp["u2"] = df["high"] - df["open"]
-            temp["l1"] = df["close"] - df["low"]
-            temp["l2"] = df["open"] - df["low"]
+                pert_lowerWick = np.random.normal(loc = 0, scale = 1, size = shape)
+                pert_lowerWick /= max(pert_lowerWick)
 
-            _upperWickLen = temp[["u1","u2"]].max(axis=1)
-            _lowerWickLen = temp[["u1","u2"]].max(axis=1)
-            _bodyLen = close - open
+                temp = pd.DataFrame()
+                temp["u1"] = df["high"] - df["close"]
+                temp["u2"] = df["high"] - df["open"]
+                temp["l1"] = df["close"] - df["low"]
+                temp["l2"] = df["open"] - df["low"]
 
-            _body = _bodyLen * (1 + pert_body) * scale_body
-            _high = _upperWickLen * (1 + pert_upperWick) * scale_high
-            _low  = _lowerWickLen * (1 + pert_lowerWick) * scale_low
+                _upperWickLen = temp[["u1","u2"]].max(axis=1)
+                _lowerWickLen = temp[["u1","u2"]].max(axis=1)
+                _bodyLen = close - open
 
-            _close = np.cumsum(_body) + close.iloc[0]
-            df["_close"] = _close
+                _body = _bodyLen * (1 + pert_body) * scale_body
+                _high = _upperWickLen * (1 + pert_upperWick) * scale_high
+                _low  = _lowerWickLen * (1 + pert_lowerWick) * scale_low
+                _volume = volume * abs((_high - _low)/(high - low))
 
-            df["_open"] = df["_close"].shift(1)
-            df["_open"].iloc[0] = df["open"].iloc[0] 
+                _close = np.cumsum(_body) + close.iloc[0]
+                df["_close"] = _close
 
-            df["_high"] = df[["_open","_close"]].max(axis=1) +_high
-            df["_low"]  = df[["_open","_close"]].min(axis=1) - _low
+                df["_open"] = df["_close"].shift(1)
+                df["_open"].iloc[0] = df["open"].iloc[0]
 
-            frame = {
-                "time":time,
-                "open":df["_open"],
-                "high":df["_high"],
-                "low":df["_low"],
-                "close":df["_close"]
-            }
+                df["_high"] = df[["_open","_close"]].max(axis=1) +_high
+                df["_low"]  = df[["_open","_close"]].min(axis=1) - _low
 
-            returnDF = pd.DataFrame(frame)
-        else:
-            print("Error, wrong method number provided!")
+                df["_volume"] = _volume
+
+
+                frame = {
+                    "date":time,
+                    "open":df["_open"],
+                    "high":df["_high"],
+                    "low":df["_low"],
+                    "close":df["_close"],
+                    "volume":df["_volume"],
+                    "close_time":close_time
+                }
+
+                returnDF = pd.DataFrame(frame)
+
+                
+                # Generate the data untill there are no negative values
+                if not (returnDF.iloc[:,1:4] < 0).any().any():
+                    _continue = False
+
+            else:
+                print("Error, wrong method number provided!")
+                
+                _continue = False
         
         return returnDF
 
@@ -341,9 +372,13 @@ class Brownian():
         return s
 
        
-data = getCandles("./Datas/historical_BTCUSDT_5m_1420057800000.csv")[-1000:]
+# data = getCandles("./Datas/historical_BTCUSDT_5m_1420057800000.csv")[-1000:]
 
-originalChart = go.Candlestick(x=data["open_time"],
+data = pd.read_json("./Candlestick-Noise/Data/data.json")
+data = data["2022-01-01" <= data["date"]]
+
+originalChart = go.Candlestick(
+                x=data["date"],
                 open=data['open'],
                 high=data['high'],
                 low=data['low'],
@@ -352,15 +387,22 @@ originalChart = go.Candlestick(x=data["open_time"],
                 )
 
 candles = GenerateCandles().GaussianCnadles(
-    data["open_time"], 
+    data["date"], 
     data["open"], 
     data["high"], 
     data["close"], 
     data["low"], 
-    scale = [50, 0, 0], 
-    method = 2)
+    data["volume"], 
+    data["close_time"], 
+    scale = [100, 20, 20], 
+    method = 2
+    )
 
-noisedChart = go.Candlestick(x=candles["time"],
+candles.to_pickle("Candlestick-Noise\Data\generated_2022_01_01__100,20,20_2.pkl")
+# candles = pd.read_pickle("Candlestick-Noise\Data\generated_2022_01_01__100,20,20_3.pkl")
+
+noisedChart = go.Candlestick(
+                x=candles["date"],
                 open=candles['open'],
                 high=candles['high'],
                 low=candles['low'],
@@ -371,6 +413,5 @@ noisedChart = go.Candlestick(x=candles["time"],
                 )
 
 fig = go.Figure(data=[noisedChart, originalChart])
-
 
 fig.show()
