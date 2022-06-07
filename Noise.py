@@ -202,8 +202,11 @@ class Noise():
                 _close = np.cumsum(_body) + close.iloc[0]
                 df["_close"] = _close
 
+
                 df["_open"] = df["_close"].shift(1)
-                df["_open"].iloc[0] = df["open"].iloc[0]
+                _k = df.columns.get_loc("_open")
+                k = df.columns.get_loc("open")
+                df.iloc[0,_k] = df.iloc[0,k]
 
                 df["_high"] = df[["_open","_close"]].max(axis=1) +_high
                 df["_low"]  = df[["_open","_close"]].min(axis=1) - _low
@@ -375,7 +378,8 @@ class Brownian():
 # data = getCandles("./Datas/historical_BTCUSDT_5m_1420057800000.csv")[-1000:]
 
 data = pd.read_json("./Candlestick-Noise/Data/data.json")
-data = data["2022-01-01" <= data["date"]]
+data = data["2021-01-01" <= data["date"]]
+data = data[data["date"] <= "2022-01-01"]
 
 originalChart = go.Candlestick(
                 x=data["date"],
@@ -386,20 +390,20 @@ originalChart = go.Candlestick(
                 name = "Original"
                 )
 
-candles = GenerateCandles().GaussianCnadles(
-    data["date"], 
-    data["open"], 
-    data["high"], 
-    data["close"], 
-    data["low"], 
-    data["volume"], 
-    data["close_time"], 
-    scale = [100, 20, 20], 
-    method = 2
-    )
+# candles = GenerateCandles().GaussianCnadles(
+#     data["date"], 
+#     data["open"], 
+#     data["high"], 
+#     data["close"], 
+#     data["low"], 
+#     data["volume"], 
+#     data["close_time"], 
+#     scale = [50, 0, 0], 
+#     method = 2
+#     )
 
-candles.to_pickle("Candlestick-Noise\Data\generated_2022_01_01__100,20,20_2.pkl")
-# candles = pd.read_pickle("Candlestick-Noise\Data\generated_2022_01_01__100,20,20_3.pkl")
+# candles.to_pickle("./Python 18-Generating different data/Candlestick-Noise/Data/generated_2021_01_01__50,0,0_3.pkl")
+candles = pd.read_pickle("Candlestick-Noise\Data\generated_2021_01_01___2022_01_01__100,20,20_3.pkl")
 
 noisedChart = go.Candlestick(
                 x=candles["date"],
