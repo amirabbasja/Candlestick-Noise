@@ -15,6 +15,61 @@ def getCandles(fileLocation : string) -> pd.DataFrame():
     # This fuunction reads a dataframe from a csv file
     return pd.read_csv(fileLocation)
 
+def plotDataset(df:pd.DataFrame, method = "mplfinance") -> None:
+    """
+    The function to plot candlestick data.
+    
+    Arguments
+    ---------
+    df: pd.DataFrame: The dataframe containing open, high, close and low of candles in each column. 
+        The dataframe has to contain a "date" column representing the open time of each cnadle. the
+        dataframe can contain "close_time" and "volume" column but it is not necessary to provide 
+        them.
+    method: string: The method to plot the data. (Choose between "mplfinance" or "plotly")
+
+    Returns
+    -------
+    None
+
+    """
+    
+    if method == "mplfinance":
+        import mplfinance as mplf
+        
+        # Setting the date column as index
+        df.index = pd.DatetimeIndex(df['date'])
+
+        mplf.plot(
+            df,
+            style="charles",
+            type="candle",
+            volume=False if "volume" not in df.columns else True, 
+            title={"title": "Candlestick data"},
+            tight_layout=True,
+        )
+
+    elif method == "plotly":
+        import plotly.graph_objects as go   
+
+        noisedChart = go.Candlestick(
+                x=candles["date"],
+                open=candles['open'],
+                high=candles['high'],
+                low=candles['low'],
+                close=candles['close'],
+                name = "Candlestick data",
+                # increasing={'line': {'color': 'blue'}},
+                # decreasing={'line': {'color': 'purple'}},
+                )
+
+        fig = go.Figure(data=[noisedChart])
+
+        fig.show()
+
+    else:
+        print("Error, Method only mplfinance or plotly are allowed")
+
+
 class Noise():
     """
     The master class that contains the different methods of adding noise
@@ -447,27 +502,10 @@ class Brownian():
 
 
 cls = GenerateCandles()
-candles = cls.BrownianMotion(candlesCount = 100000, mean = 0, volatility = 1, wicks = [50, 50], frequency = "5m")
+candles = cls.BrownianMotion(candlesCount = 1000, mean = 0, volatility = 1, wicks = [50, 50], frequency = "5m")
 print(candles)
-# plt.figure(figsize=(10,5))
-# plt.plot(candles["close"])
-# plt.show()
 
-
-candles.index = pd.DatetimeIndex(candles['date'])
-mplf.plot(
-    candles,
-    style="charles",
-    type="candle",
-    volume=False, 
-    title={"title": "large title", "y": 1},
-    tight_layout=True,
-)
-
-
-
-
-
+plotDataset(candles, method = "mplfinance")
 
 
 
