@@ -1,5 +1,8 @@
+from random import randint, randrange
 import string
 from time import time
+from tkinter.tix import Tree
+from turtle import width
 import pandas as pd
 from plotly.subplots import make_subplots
 import numpy as np
@@ -43,7 +46,7 @@ def plotDataset(df:pd.DataFrame, method = "mplfinance") -> None:
             df,
             style="charles",
             type="candle",
-            volume=False if "volume" not in df.columns else True, 
+            volume=False , # if "volume" not in df.columns else True, 
             title={"title": "Candlestick data"},
             tight_layout=True,
         )
@@ -68,6 +71,68 @@ def plotDataset(df:pd.DataFrame, method = "mplfinance") -> None:
 
     else:
         print("Error, Method only mplfinance or plotly are allowed")
+
+def saveCandles(df:pd.DataFrame, location:string, saveImage = False, method = "mplfinance") -> None:
+    """
+    The function to save the candlestick data to a pickle file.
+
+    Arguments
+    ---------
+    df: pd.DataFrame: The dataframe containing open, high, close and low of candles in each column. 
+        The dataframe has to contain a "date" column representing the open time of each cnadle. the
+        dataframe can contain "close_time" and "volume" column but it is not necessary to provide 
+        them.    
+    location: string: The location of the file to save the data. It should contain file's name and 
+    also it's extention.
+    saveImage: boolean: If true the candlestick plot is saved as an image.
+    method: string: The method to plot the data. (Choose between "mplfinance" or "plotly")
+
+    Returns
+    -------
+    None
+
+    Note
+    ----
+    * To use plotly as a method of saving images, you need to have kaleido package installed.
+
+    """
+
+    if saveImage:
+        if method == "mplfinance":    
+            import mplfinance as mplf
+            
+            # Setting the date column as index
+            df.index = pd.DatetimeIndex(df['date'])
+
+            mplf.plot(
+                df,
+                style="charles",
+                type="candle",
+                volume=False if "volume" not in df.columns else True, 
+                title={"title": "Candlestick data"},
+                tight_layout=True,
+                savefig = location.replace(".pkl",".png")
+            )
+        elif method == "plotly":
+            import plotly.graph_objects as go   
+
+            noisedChart = go.Candlestick(
+                    x=candles["date"],
+                    open=candles['open'],
+                    high=candles['high'],
+                    low=candles['low'],
+                    close=candles['close'],
+                    name = "Candlestick data",
+                    # increasing={'line': {'color': 'blue'}},
+                    # decreasing={'line': {'color': 'purple'}},
+                    )
+
+            layout = go.Layout( margin=dict(l=20, r=20, t=20, b=20))
+            fig = go.Figure(data=[noisedChart], layout=layout)
+            fig.update_xaxes(rangeslider_visible=False,  title = location[location.rfind("/")+1:location.rfind(".")])
+            fig.write_image(location.replace(".pkl",".png"), width=800, height=400)
+
+    df.to_pickle(location)
 
 
 class Noise():
@@ -305,7 +370,7 @@ class GenerateCandles(Noise):
         
         pass
 
-    def BrownianMotion(self, candlesCount:int, volatility:float, wicks:list, mean = 0, startDate = "2022-01-01", frequency = "5min") -> pd.DataFrame:
+    def BrownianMotion(self, candlesCount:int, volatility:float, wicks:list, maxMargin, mean = 0, startDate = "2022-01-01", frequency = "5min") -> pd.DataFrame:
         """
         Generates a brownian motion (Also know ans wiener process) with the given parameters.
         Note that the brownian motion is used to generate random stock prices as a time series 
@@ -317,11 +382,18 @@ class GenerateCandles(Noise):
         values but the maximum limit for the shadows will be a percentage of the cnalde body.
         This value will be a parameter of the function.
         
-        update1:
+        update 1:
         Some charting applications require indexes to be date, so to make the data more suitable 
         for these applications (i.e. mplfinance) we add a date column as well to the outputted 
         dataframe. The starting date of the data is set to 2022-01-01 as a default but it can be 
         changed by the user.
+
+        update 2:
+        The candlestick data has to be positive, but the wiener process generates random numbers
+        and these random numbers can be negative. So we have to make sure that the candlestick
+        dataset is positive. To do this, we generate a random number between 1 and "maxMargin"
+        and shift the chart (If it has negative prices) to the generated number.
+
 
 
         Parameters
@@ -329,18 +401,20 @@ class GenerateCandles(Noise):
         candlesCount: int: number of candles to generate
         mean: float: mean of the brownian motion, The default is 0
         volatility: float: variance of the brownian motion
-        wicks: list[lower, upper]: the length of the upper and lower wicks as a percentage of the candle body
-            The values has to be in percentage(e.g. 50 for 50%)
+        wicks: list[lower, upper]: the length of the upper and lower wicks as a percentage of the
+            candle body The values has to be in percentage(e.g. 50 for 50%)
         startDate: str: starting date of the data (optional)
         frequency: str: frequency of the data (optional)
         
         To do:
         ------
-        * Adding the volume for each candle (The volume will be proportional to the candle's body)
+        * Adding the volume for each candle (The volume will be proportional to the candle's body).
+        Currently the volume is set to 0.
 
         Returns
         -------
-        df: pandas.DataFrame: The generated candles
+        df: pandas.DataFrame: The generated candles containing the date, open, high, low, close, 
+        close_time and volume. (date is the oppening time of the candle)
         """
 
         # Because of shifting, we lose the last candle, so we add one to the candlesCount
@@ -367,8 +441,19 @@ class GenerateCandles(Noise):
 
         df["low"] = down - abs(_body) * (1 + wicks[0]) * rand2
         df["high"] = up + abs(_body) * (1 + wicks[1]) * rand1
+        df["volume"] = 0
+        df["close_time"] = df["date"].shift(-1)
 
-        df["close_date"] = df["date"].shift(-1)
+        # Shifting the data to make negative prices positive
+        lowestNum = df["low"].min()
+
+        if lowestNum < 0:
+            shift = randint(1,maxMargin)
+
+            df["open"] += shift -lowestNum
+            df["close"] += shift -lowestNum
+            df["low"] += shift -lowestNum
+            df["high"] += shift -lowestNum
 
         return df.iloc[:-2,:]
 
@@ -501,12 +586,14 @@ class Brownian():
 
 
 
+
 cls = GenerateCandles()
-candles = cls.BrownianMotion(candlesCount = 1000, mean = 0, volatility = 1, wicks = [50, 50], frequency = "5m")
-print(candles)
 
-plotDataset(candles, method = "mplfinance")
+candles = cls.BrownianMotion(candlesCount = 100000, mean = 0, maxMargin = 50000, volatility = 100, wicks = [50, 50], frequency = "5m")
 
+saveCandles(candles, location = "Candlestick-Noise/Data/Generated-1year-50,50-5min-vola500-3.pkl", saveImage = True, method = "plotly")
+
+# plotDataset(candles, method = "mplfinance")
 
 
 
