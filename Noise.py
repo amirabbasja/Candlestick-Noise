@@ -238,7 +238,7 @@ class Noise():
 
         while _continue:
             if method == 1:
-                # The logic: In thsi method we do not care about not generating gaps. so we add noise
+                # The logic: In this method we do not care about not generating gaps. so we add noise
                 # to the body of each candle but we keep the open price the same. this will avoid the 
                 # noise to be accumulated and chart looks very much like the original (Without noise)
                 
@@ -298,7 +298,7 @@ class Noise():
 
             elif method == 2:
                 # The logic: to keep the candles continouse and avoid making gamps, we use cumsum 
-                # of the body + noise adn assign the value to the candle's close. and then we assign
+                # of the body + noise and assign the value to the candle's close. and then we assign
                 # the close of the current candle to open of the next candle
                 
                 df["Date"] = time
@@ -393,14 +393,14 @@ class GenerateCandles(Noise):
         values but the maximum limit for the shadows will be a percentage of the cnalde body.
         This value will be a parameter of the function.
         
-        update 1:
-        Some charting applications require indexes to be date, so to make the data more suitable 
+        Updates:
+        --------
+        1. Some charting applications require indexes to be date, so to make the data more suitable 
         for these applications (i.e. mplfinance) we add a date column as well to the outputted 
         dataframe. The starting date of the data is set to 2022-01-01 as a default but it can be 
         changed by the user.
 
-        update 2:
-        The candlestick data has to be positive, but the wiener process generates random numbers
+        2. The candlestick data has to be positive, but the wiener process generates random numbers
         and these random numbers can be negative. So we have to make sure that the candlestick
         dataset is positive. To do this, we generate a random number between 1 and "maxMargin"
         and shift the chart (If it has negative prices) to the generated number.
